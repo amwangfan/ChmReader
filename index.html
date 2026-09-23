@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f6f6f3">
+  <meta name="description" content="浏览器本地解析的 CHM 在线阅读器。文件不上传服务器。">
+  <title>CHM Preview</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="site-header">
+      <button class="brand brand-button" id="homeBtn" type="button" aria-label="返回首页">
+        <span class="brand-icon">C</span>
+        <span class="brand-copy"><b>CHM Preview</b><small>Local Reader</small></span>
+      </button>
+      <div class="header-actions">
+        <a class="mode-link" href="./ruledesk/">RuleDesk 跑团模式</a>
+        <button class="mode-link mode-choice-link" id="defaultModeBtn" type="button">默认模式</button>
+        <div class="local-badge"><i></i><span>本地解析 · 不上传文件</span></div>
+      </div>
+    </header>
+
+    <main id="landing" class="landing">
+      <section class="hero">
+        <p class="kicker">STATIC · PRIVATE · LARGE-FILE FRIENDLY</p>
+        <h1>CHM 阅读器</h1>
+        <p class="hero-copy">通用 CHM 阅读器，界面简洁，适合帮助文档和技术手册。</p>
+        <div class="hero-actions">
+          <button id="pickBtn" class="btn primary" type="button">选择 CHM 文件</button>
+          <span>也可以直接拖到页面里</span>
+        </div>
+        <input id="fileInput" type="file" accept=".chm,application/vnd.ms-htmlhelp" hidden>
+        <div class="facts">
+          <div><b>0</b><span>文件上传</span></div>
+          <div><b>按需</b><span>读取与 LZX 解压</span></div>
+          <div><b>静态</b><span>Cloudflare Pages 即可</span></div>
+        </div>
+      </section>
+
+      <section id="dropZone" class="drop-zone">
+        <div class="drop-glyph">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0-12 4 4m-4-4L8 7M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>
+          </svg>
+        </div>
+        <strong>拖放 .chm 文件</strong>
+        <span>文件始终留在你的设备上</span>
+        <small>建议超大文件使用桌面版 Chrome / Edge</small>
+      </section>
+      <footer class="project-footer">
+        <span>CHM Preview · Local Reader</span>
+        <a href="https://github.com/amwangfan/ChmReader" target="_blank" rel="noopener noreferrer">GitHub · amwangfan/ChmReader ↗</a>
+      </footer>
+    </main>
+
+    <main id="reader" class="reader" hidden>
+      <div class="reader-toolbar">
+        <div class="reader-left">
+          <button id="sidebarBtn" class="icon-btn" type="button" aria-label="显示或隐藏目录">☰</button>
+          <div class="doc-meta">
+            <b id="docTitle">CHM</b>
+            <span id="docMeta"></span>
+          </div>
+        </div>
+        <div class="reader-center">
+          <button id="prevBtn" class="icon-btn" type="button" title="上一页">←</button>
+          <button id="nextBtn" class="icon-btn" type="button" title="下一页">→</button>
+        </div>
+        <div class="reader-right">
+          <label class="encoding-label">
+            <span>编码</span>
+            <select id="encodingSelect">
+              <option value="">自动</option>
+              <option value="utf-8">UTF-8</option>
+              <option value="gbk">GBK</option>
+              <option value="gb18030">GB18030</option>
+              <option value="big5">Big5</option>
+              <option value="shift_jis">Shift-JIS</option>
+              <option value="euc-jp">EUC-JP</option>
+              <option value="euc-kr">EUC-KR</option>
+              <option value="windows-1252">Windows-1252</option>
+            </select>
+          </label>
+          <button id="anotherBtn" class="btn secondary" type="button">打开其他文件</button>
+        </div>
+      </div>
+
+      <div class="reader-layout">
+        <aside id="sidebar" class="sidebar">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-tab="toc" type="button">目录</button>
+            <button class="tab" data-tab="index" type="button">索引</button>
+            <button class="tab" data-tab="search" type="button">全文</button>
+          </div>
+          <div id="tocPanel" class="panel active">
+            <input id="tocFilter" class="search-input" type="search" placeholder="筛选目录…" autocomplete="off">
+            <div id="tocList" class="nav-list"></div>
+          </div>
+          <div id="indexPanel" class="panel">
+            <input id="indexFilter" class="search-input" type="search" placeholder="筛选索引…" autocomplete="off">
+            <div id="indexList" class="nav-list"></div>
+          </div>
+          <div id="searchPanel" class="panel">
+            <form id="searchForm" class="search-form">
+              <input id="searchInput" class="search-input" type="search" placeholder="搜索正文（至少 2 个字符）…" autocomplete="off">
+              <button class="btn search-btn" type="submit">搜索</button>
+            </form>
+            <p class="search-note">全文搜索会按需解压页面；超大 CHM 首次搜索可能较慢。</p>
+            <div id="searchList" class="nav-list"></div>
+          </div>
+        </aside>
+
+        <section class="content-shell">
+          <div id="pageLoading" class="page-loading" hidden>
+            <span class="spinner"></span><span id="loadingText">正在读取页面…</span>
+          </div>
+          <iframe
+            id="contentFrame"
+            class="content-frame"
+            sandbox="allow-same-origin"
+            referrerpolicy="no-referrer"
+            title="CHM 内容"
+          ></iframe>
+        </section>
+      </div>
+    </main>
+
+    <div id="overlay" class="overlay" hidden>
+      <div class="loading-card">
+        <span class="spinner big"></span>
+        <strong id="overlayTitle">正在打开 CHM</strong>
+        <p id="overlayText">正在读取目录结构…</p>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="modeModal" class="mode-modal" hidden>
+      <div class="mode-card" role="dialog" aria-modal="true" aria-labelledby="modeTitle">
+        <p class="kicker">WELCOME</p>
+        <h2 id="modeTitle">选择默认阅读模式</h2>
+        <p>以后访问首页时可以直接进入你常用的模式，也可以随时在顶部切换。</p>
+        <div class="mode-grid">
+          <button id="chooseNormalMode" class="mode-option" type="button">
+            <b>CHM 阅读器</b><span>通用 CHM 阅读器，界面简洁，适合帮助文档和技术手册。</span>
+          </button>
+          <button id="chooseRuleMode" class="mode-option accent" type="button">
+            <b>专为跑团优化</b><span>RuleDesk 跑团规则书工作台：快速检索、多标签、双栏、预览和规则卡复制。</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
