@@ -1,5 +1,5 @@
 const DB_NAME = 'ruledesk-library-v1';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -33,6 +33,7 @@ export function openLibraryDB() {
         const terms = db.createObjectStore('terms', { keyPath: ['bookId', 'termId'] });
         terms.createIndex('byBook', 'bookId', { unique: false });
       }
+      if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'bookId' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error('无法打开 RuleDesk 本地书架'));
@@ -72,6 +73,40 @@ export async function patchBookRecord(id, patch) {
   return next;
 }
 
+export async function putBookFile(bookId, file) {
+  if (!bookId || !(file instanceof Blob)) throw new Error('无法保存规则书文件');
+  const db = await openLibraryDB();
+  const tx = db.transaction('files', 'readwrite');
+  tx.objectStore('files').put({
+    bookId,
+    blob: file,
+    name: file.name || 'rules.chm',
+    type: file.type || 'application/vnd.ms-htmlhelp',
+    lastModified: Number(file.lastModified || Date.now()),
+    size: Number(file.size || 0),
+  });
+  await transactionDone(tx);
+}
+
+export async function getBookFile(bookId) {
+  const db = await openLibraryDB();
+  const tx = db.transaction('files', 'readonly');
+  const row = await requestAsPromise(tx.objectStore('files').get(bookId));
+  await transactionDone(tx);
+  if (!row?.blob) return null;
+  return row.blob instanceof File ? row.blob : new File([row.blob], row.name || 'rules.chm', {
+    type: row.type || 'application/vnd.ms-htmlhelp',
+    lastModified: row.lastModified || Date.now(),
+  });
+}
+
+export async function deleteBookFile(bookId) {
+  const db = await openLibraryDB();
+  const tx = db.transaction('files', 'readwrite');
+  tx.objectStore('files').delete(bookId);
+  await transactionDone(tx);
+}
+
 async function deleteByBookIndex(store, bookId) {
   const index = store.index('byBook');
   await new Promise((resolve, reject) => {
@@ -106,8 +141,9 @@ export async function clearBookIndex(bookId) {
 
 export async function deleteBookData(bookId) {
   const db = await openLibraryDB();
-  const tx = db.transaction(['books', 'pages', 'terms'], 'readwrite');
+  const tx = db.transaction(['books', 'pages', 'terms', 'files'], 'readwrite');
   tx.objectStore('books').delete(bookId);
+  tx.objectStore('files').delete(bookId);
   await Promise.all([
     deleteByBookIndex(tx.objectStore('pages'), bookId),
     deleteByBookIndex(tx.objectStore('terms'), bookId),
