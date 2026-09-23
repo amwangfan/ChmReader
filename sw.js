@@ -1,4 +1,4 @@
-const CACHE = 'ruledesk-shell-v1.3.5';
+const CACHE = 'ruledesk-shell-v1.3.6';
 const SHELL = [
   './', './index.html', './style.css', './app.js', './chm-worker.js',
   './engine/chm.js', './engine/lzx.js', './engine/codec.js',
