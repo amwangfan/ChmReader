@@ -21,6 +21,7 @@ const bookTitle = $('bookTitle');
 const bookMeta = $('bookMeta');
 const globalSearchForm = $('globalSearchForm');
 const globalSearchInput = $('globalSearchInput');
+const globalSearchClose = $('globalSearchClose');
 const globalSearchResults = $('globalSearchResults');
 const searchScopeMenu = $('searchScopeMenu');
 const searchStatus = $('searchStatus');
@@ -182,13 +183,29 @@ function usesCompactChrome() {
   return innerWidth <= 820 || (innerWidth <= 1400 && isTouchPrimaryDevice());
 }
 
+function closeCompactSearch({ blur = true } = {}) {
+  globalSearchForm?.classList.remove('mobile-search-open');
+  searchScopeMenu.hidden = true;
+  searchBtn?.setAttribute('aria-expanded', 'false');
+  if (blur && document.activeElement === globalSearchInput) globalSearchInput.blur();
+}
+
+function openCompactSearch() {
+  if (!usesCompactChrome()) return;
+  globalSearchForm.classList.add('mobile-search-open');
+  searchBtn?.setAttribute('aria-expanded', 'true');
+  globalSearchInput.focus({ preventScroll: true });
+  globalSearchInput.select();
+  showSearchScopeMenu();
+}
+
 function syncAdaptiveChrome() {
   const tabletCompact = innerWidth > 820 && innerWidth <= 1400 && isTouchPrimaryDevice();
   document.body.classList.toggle('tablet-compact', tabletCompact);
   if (!usesCompactChrome()) {
     sidebar?.classList.remove('mobile-open');
     document.body.classList.remove('mobile-tools-open');
-    globalSearchForm?.classList.remove('mobile-search-open');
+    closeCompactSearch({ blur: false });
     mobileToolsBtn?.setAttribute('aria-expanded', 'false');
   } else {
     document.body.classList.remove('sidebar-hidden');
@@ -2078,10 +2095,19 @@ mobileToolsBtn?.addEventListener('click', () => {
 });
 searchBtn.addEventListener('click', () => {
   if (workspace.hidden) return;
-  globalSearchForm.classList.add('mobile-search-open');
-  globalSearchInput.focus();
-  globalSearchInput.select();
-  showSearchScopeMenu();
+  if (!usesCompactChrome()) {
+    globalSearchInput.focus();
+    globalSearchInput.select();
+    showSearchScopeMenu();
+    return;
+  }
+  if (globalSearchForm.classList.contains('mobile-search-open')) closeCompactSearch();
+  else openCompactSearch();
+});
+globalSearchClose?.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeCompactSearch();
 });
 historyBackBtn.addEventListener('click', () => navigateHistory(-1));
 historyForwardBtn.addEventListener('click', () => navigateHistory(1));
@@ -2123,8 +2149,21 @@ globalSearchInput.addEventListener('input', () => {
     : `当前范围：${scope.label}。继续输入，至少 2 个字符可搜索正文。`;
 });
 globalSearchInput.addEventListener('focus', showSearchScopeMenu);
-globalSearchInput.addEventListener('blur', () => { setTimeout(() => { searchScopeMenu.hidden = true; }, 120); });
-globalSearchForm.addEventListener('submit', (event) => { event.preventDefault(); searchScopeMenu.hidden = true; void runFullSearch(globalSearchInput.value); });
+globalSearchInput.addEventListener('blur', () => { setTimeout(() => { if (!searchScopeMenu.matches(':hover')) searchScopeMenu.hidden = true; }, 160); });
+globalSearchForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  searchScopeMenu.hidden = true;
+  void runFullSearch(globalSearchInput.value);
+  if (usesCompactChrome()) closeCompactSearch();
+});
+
+document.addEventListener('pointerdown', (event) => {
+  if (!usesCompactChrome() || !globalSearchForm.classList.contains('mobile-search-open')) return;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (globalSearchForm.contains(target) || searchScopeMenu.contains(target) || searchBtn.contains(target)) return;
+  closeCompactSearch();
+}, { capture: true });
 
 previewClose.addEventListener('click', () => { previewGeneration += 1; previewCard.hidden = true; });
 previewOpen.addEventListener('click', openPreviewNormally);
@@ -2139,12 +2178,12 @@ for (const target of [document.body, dropZone]) {
 }
 
 window.addEventListener('keydown', (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (workspace.hidden) return; if (usesCompactChrome()) globalSearchForm.classList.add('mobile-search-open'); globalSearchInput.focus(); globalSearchInput.select(); showSearchScopeMenu(); }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (workspace.hidden) return; if (usesCompactChrome()) openCompactSearch(); else { globalSearchInput.focus(); globalSearchInput.select(); showSearchScopeMenu(); } }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') { event.preventDefault(); void chooseFile(); }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd' && !workspace.hidden) { event.preventDefault(); toggleBookmark(); }
   if (event.altKey && event.key === 'ArrowLeft' && !workspace.hidden) { event.preventDefault(); navigateHistory(-1); }
   if (event.altKey && event.key === 'ArrowRight' && !workspace.hidden) { event.preventDefault(); navigateHistory(1); }
-  if (event.key === 'Escape') { sidebar.classList.remove('mobile-open'); globalSearchForm.classList.remove('mobile-search-open'); searchScopeMenu.hidden = true; previewCard.hidden = true; selectionBar.hidden = true; selectionState = null; document.body.classList.remove('mobile-tools-open'); mobileToolsBtn?.setAttribute('aria-expanded', 'false'); }
+  if (event.key === 'Escape') { sidebar.classList.remove('mobile-open'); closeCompactSearch(); previewCard.hidden = true; selectionBar.hidden = true; selectionState = null; document.body.classList.remove('mobile-tools-open'); mobileToolsBtn?.setAttribute('aria-expanded', 'false'); }
 });
 window.addEventListener('beforeunload', () => { capturePane('primary'); capturePane('secondary'); destroySession(); });
 
