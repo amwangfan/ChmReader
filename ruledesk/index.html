@@ -43,7 +43,7 @@
         <div class="drop-icon">⌕</div>
         <strong>拖入规则书</strong>
         <span>支持大体积 CHM 按需读取，不上传服务器</span>
-        <small>桌面优先记住原文件；移动端可保存到离线书架</small>
+        <small>桌面优先记住原文件；手机/平板可保存离线副本</small>
       </section>
 
       <section class="library-section" aria-labelledby="libraryHeading">
@@ -51,7 +51,7 @@
           <div>
             <p class="eyebrow">LOCAL LIBRARY · OFFLINE FIRST</p>
             <h2 id="libraryHeading">本地规则书架</h2>
-            <p>桌面端可记住本地文件句柄，不额外复制；手机/平板可保存到浏览器 OPFS，之后离线直接打开。浏览器存储默认是 best-effort，保存时会尝试申请持久化，也可随时手动删除。</p>
+            <p>桌面端可记住本地文件句柄，不额外复制；手机/平板优先保存到 OPFS，不支持 OPFS 的浏览器会自动回退到 IndexedDB 离线副本。浏览器存储默认是 best-effort，保存时会尝试申请持久化，也可随时手动删除。</p>
           </div>
           <div class="library-storage" id="libraryStorage">正在读取本地书架…</div>
         </div>
@@ -150,7 +150,7 @@
     <div id="shelfPrompt" class="shelf-prompt" hidden>
       <div class="shelf-prompt-card">
         <span class="shelf-prompt-icon">▣</span>
-        <div><b>保存到离线书架？</b><p>这会把规则书复制到浏览器的本地私有存储（OPFS）。以后无需再次从文件管理器选择，断网也能打开。</p></div>
+        <div><b>保存到离线书架？</b><p>这会把规则书复制到浏览器本地。优先使用 OPFS；若设备不支持（例如部分移动浏览器），会自动回退到 IndexedDB。以后无需再次从文件管理器选择，断网也能打开。</p></div>
         <div class="shelf-prompt-actions"><button id="shelfSaveBtn" class="btn primary" type="button">保存到离线书架</button><button id="shelfSkipBtn" class="btn secondary" type="button">仅本次打开</button></div>
       </div>
     </div>
