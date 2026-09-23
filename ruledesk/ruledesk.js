@@ -1,5 +1,5 @@
 import { decode, detectEncoding, normalizePath, fragmentOf, isExternal } from '../engine/codec.js';
-import { listBooks, getBookRecord, putBookRecord, patchBookRecord, deleteBookData, getAllTerms, seedBookTerms, searchLibraryPages, normalizeSearch } from './library.js';
+import { listBooks, getBookRecord, putBookRecord, patchBookRecord, deleteBookData, putBookFile, getBookFile, getAllTerms, seedBookTerms, searchLibraryPages, normalizeSearch } from './library.js';
 
 const $ = (id) => document.getElementById(id);
 const landing = $('landing');
@@ -170,8 +170,29 @@ function bookIdForFile(file) {
   return `b-${stableHash(`${file?.name || ''}|${file?.size || 0}|${file?.lastModified || 0}`)}`;
 }
 
+function isTouchPrimaryDevice() {
+  return matchMedia('(hover: none) and (pointer: coarse)').matches || (navigator.maxTouchPoints > 1 && !matchMedia('(hover: hover) and (pointer: fine)').matches);
+}
+
 function isMobileLike() {
-  return matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 1 && innerWidth <= 1100);
+  return isTouchPrimaryDevice() || (navigator.maxTouchPoints > 1 && innerWidth <= 1100);
+}
+
+function usesCompactChrome() {
+  return innerWidth <= 820 || (innerWidth <= 1400 && isTouchPrimaryDevice());
+}
+
+function syncAdaptiveChrome() {
+  const tabletCompact = innerWidth > 820 && innerWidth <= 1400 && isTouchPrimaryDevice();
+  document.body.classList.toggle('tablet-compact', tabletCompact);
+  if (!usesCompactChrome()) {
+    sidebar?.classList.remove('mobile-open');
+    document.body.classList.remove('mobile-tools-open');
+    globalSearchForm?.classList.remove('mobile-search-open');
+    mobileToolsBtn?.setAttribute('aria-expanded', 'false');
+  } else {
+    document.body.classList.remove('sidebar-hidden');
+  }
 }
 
 function canUseDesktopFilePicker() {
@@ -228,7 +249,7 @@ function renderLibrary() {
     const title = document.createElement('button'); title.type = 'button'; title.className = 'library-card-title'; title.textContent = record.title || record.name || '规则书'; title.title = title.textContent;
     title.addEventListener('click', () => void openShelfBook(record.id));
     const meta = document.createElement('div'); meta.className = 'library-card-meta';
-    const sourceLabel = record.sourceType === 'handle' ? '原文件 · 0 额外副本' : '离线副本 · OPFS';
+    const sourceLabel = record.sourceType === 'handle' ? '原文件 · 0 额外副本' : record.sourceType === 'idb' ? '离线副本 · IndexedDB' : '离线副本 · OPFS';
     meta.textContent = `${formatBytes(record.size || 0)} · ${(record.pageCount || 0).toLocaleString()} 页 · ${String(record.encoding || '').toUpperCase()} · ${record.compression ? 'LZX' : '未压缩'} · ${sourceLabel}`;
     const index = document.createElement('div'); index.className = 'library-card-index';
     const label = document.createElement('span'); label.textContent = indexLabel(record);
@@ -281,7 +302,11 @@ async function getFileFromShelfRecord(record) {
     const handle = await root.getFileHandle(record.opfsName);
     return { file: await handle.getFile(), handle: null };
   }
-  throw new Error('这本规则书的本地文件已经不可用');
+  if (record.sourceType === 'idb') {
+    const file = await getBookFile(record.id);
+    if (file) return { file, handle: null };
+  }
+  throw new Error('这本规则书的本地文件已经不可用；可重新选择原 CHM 后再次保存到书架');
 }
 
 async function openShelfBook(id, target = null) {
@@ -318,7 +343,8 @@ async function renameShelfBook(id) {
 async function removeShelfBook(id) {
   const record = await getBookRecord(id);
   if (!record) return;
-  if (!confirm(`从本地书架删除《${record.title || record.name || '规则书'}》？\n\n会同时删除这本书的持久化搜索索引${record.sourceType === 'opfs' ? '和浏览器内离线副本' : '，不会删除电脑上的原始 CHM 文件'}。`)) return;
+  const deleteNote = record.sourceType === 'handle' ? '，不会删除电脑上的原始 CHM 文件' : '和浏览器内离线副本';
+  if (!confirm(`从本地书架删除《${record.title || record.name || '规则书'}》？\n\n会同时删除这本书的持久化搜索索引${deleteNote}。`)) return;
   if (record.sourceType === 'opfs' && record.opfsName && navigator.storage?.getDirectory) {
     try { const root = await navigator.storage.getDirectory(); await root.removeEntry(record.opfsName); } catch {}
   }
@@ -412,21 +438,56 @@ async function saveCurrentHandleToShelf(handle) {
   return record;
 }
 
-async function saveCurrentToOPFS() {
-  if (!currentFile || !book || !navigator.storage?.getDirectory) { showToast('当前浏览器不支持 OPFS 离线书架', 'error'); return; }
+async function saveCurrentOfflineShelf() {
+  if (!currentFile || !book) return;
   shelfSaveBtn.disabled = true;
   shelfSaveBtn.textContent = '正在保存…';
   try {
-    try { await navigator.storage.persist?.(); } catch {}
-    const root = await navigator.storage.getDirectory();
-    const opfsName = `ruledesk-${currentBookId}.chm`;
-    const handle = await root.getFileHandle(opfsName, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(currentFile);
-    await writable.close();
+    try { await navigator.storage?.persist?.(); } catch {}
+
+    let sourceType = '';
+    let opfsName = null;
+    let opfsError = null;
+
+    if (navigator.storage?.getDirectory) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        opfsName = `ruledesk-${currentBookId}.chm`;
+        const handle = await root.getFileHandle(opfsName, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(currentFile);
+        await writable.close();
+        sourceType = 'opfs';
+      } catch (error) {
+        opfsError = error;
+        console.warn('OPFS unavailable, falling back to IndexedDB:', error);
+      }
+    }
+
+    if (!sourceType) {
+      if (typeof indexedDB === 'undefined') throw opfsError || new Error('当前浏览器不支持可用的离线文件存储');
+      await putBookFile(currentBookId, currentFile);
+      sourceType = 'idb';
+      opfsName = null;
+    }
+
     const existing = await getBookRecord(currentBookId);
-    const fresh = shelfRecordForCurrent('opfs', { opfsName });
-    const record = existing ? { ...fresh, ...existing, opfsName, sourceType: 'opfs', title: existing.customTitle ? existing.title : (book?.title || existing.title), size: currentFile.size, lastModified: currentFile.lastModified, encoding: book?.encoding || existing.encoding, compression: Boolean(book?.compression), pageCount: book?.spine?.length || existing.pageCount, docCount: book?.docs?.length || existing.docCount, lastOpened: Date.now() } : fresh;
+    const fresh = shelfRecordForCurrent(sourceType, { opfsName });
+    const record = existing ? {
+      ...fresh,
+      ...existing,
+      sourceType,
+      opfsName,
+      handle: null,
+      title: existing.customTitle ? existing.title : (book?.title || existing.title),
+      size: currentFile.size,
+      lastModified: currentFile.lastModified,
+      encoding: book?.encoding || existing.encoding,
+      compression: Boolean(book?.compression),
+      pageCount: book?.spine?.length || existing.pageCount,
+      docCount: book?.docs?.length || existing.docCount,
+      lastOpened: Date.now(),
+    } : fresh;
     await putBookRecord(record);
     await seedBookTerms(record.id, book);
     currentShelfRecord = record;
@@ -434,9 +495,11 @@ async function saveCurrentToOPFS() {
     pendingShelfFile = null;
     await refreshLibrary();
     void startPersistentIndex(record, currentFile);
-    showToast('已保存到离线书架，正在后台构建全文索引', 'info', 6000);
+    const storageName = sourceType === 'opfs' ? 'OPFS' : 'IndexedDB 兼容存储';
+    showToast(`已保存到离线书架（${storageName}），正在后台构建全文索引`, 'info', 6500);
   } catch (error) {
-    showToast(`保存失败：${error?.message || error}`, 'error', 7000);
+    const quota = error?.name === 'QuotaExceededError' ? '浏览器本地空间不足；可清理站点数据后重试。' : '';
+    showToast(`离线保存失败：${quota || error?.message || error} 仍可继续本次阅读。`, 'error', 8000);
   } finally {
     shelfSaveBtn.disabled = false;
     shelfSaveBtn.textContent = '保存到离线书架';
@@ -2000,14 +2063,14 @@ shelfBtn.addEventListener('click', () => { goHome(); void refreshLibrary(); });
 homeBtn.addEventListener('click', goHome);
 setDefaultBtn.addEventListener('click', () => { localStorage.setItem(DEFAULT_MODE_KEY, 'ruledesk'); showToast('已将 RuleDesk 设为默认模式'); });
 fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; fileInput.value = ''; if (file) void openFile(file); });
-shelfSaveBtn.addEventListener('click', () => void saveCurrentToOPFS());
+shelfSaveBtn.addEventListener('click', () => void saveCurrentOfflineShelf());
 shelfSkipBtn.addEventListener('click', () => { shelfPrompt.hidden = true; pendingShelfFile = null; });
 sidebarBtn.addEventListener('click', () => {
-  if (matchMedia('(max-width: 820px)').matches) sidebar.classList.toggle('mobile-open');
+  if (usesCompactChrome()) sidebar.classList.toggle('mobile-open');
   else document.body.classList.toggle('sidebar-hidden');
 });
 mobileToolsBtn?.addEventListener('click', () => {
-  if (!matchMedia('(max-width: 820px)').matches) return;
+  if (!usesCompactChrome()) return;
   const open = document.body.classList.toggle('mobile-tools-open');
   mobileToolsBtn.setAttribute('aria-expanded', String(open));
   mobileToolsBtn.setAttribute('aria-label', open ? '收起更多工具' : '显示更多工具');
@@ -2076,7 +2139,7 @@ for (const target of [document.body, dropZone]) {
 }
 
 window.addEventListener('keydown', (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (workspace.hidden) return; if (matchMedia('(max-width: 820px)').matches) globalSearchForm.classList.add('mobile-search-open'); globalSearchInput.focus(); globalSearchInput.select(); showSearchScopeMenu(); }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (workspace.hidden) return; if (usesCompactChrome()) globalSearchForm.classList.add('mobile-search-open'); globalSearchInput.focus(); globalSearchInput.select(); showSearchScopeMenu(); }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') { event.preventDefault(); void chooseFile(); }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd' && !workspace.hidden) { event.preventDefault(); toggleBookmark(); }
   if (event.altKey && event.key === 'ArrowLeft' && !workspace.hidden) { event.preventDefault(); navigateHistory(-1); }
@@ -2085,6 +2148,8 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('beforeunload', () => { capturePane('primary'); capturePane('secondary'); destroySession(); });
 
+syncAdaptiveChrome();
+window.addEventListener('resize', syncAdaptiveChrome);
 void refreshLibrary();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
