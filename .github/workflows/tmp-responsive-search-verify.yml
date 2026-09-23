@@ -27,7 +27,7 @@ jobs:
       - name: Run responsive search browser checks
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/ruledesk-http.log 2>&1 &
-          cat > /tmp/search-check.mjs <<'EOF'
+          cat > search-check.mjs <<'EOF'
           import { chromium } from 'playwright';
           import assert from 'node:assert/strict';
 
@@ -103,7 +103,7 @@ jobs:
           await verify('tablet-1280x800', { width: 1280, height: 800 }, true);
           await browser.close();
           EOF
-          node /tmp/search-check.mjs
+          node search-check.mjs
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         if: always()
