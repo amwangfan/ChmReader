@@ -354,3 +354,40 @@ body.reading-mode{height:100vh;height:100dvh;min-height:0;overflow:hidden}
 .project-footer a{color:inherit;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}.project-footer a:hover{border-color:currentColor}
 body[data-reader-theme="dark"] .project-footer{color:#928d80}body[data-reader-theme="light"] .project-footer{color:#85857d}
 @media(max-width:720px){.project-footer{flex-direction:column;gap:4px;padding:2px 0 12px;font-size:10px}}
+
+
+/* v1.3.5 — touch-tablet compact chrome. Desktop pointer/fine layouts stay unchanged. */
+body.tablet-compact.reading-mode{--top:48px;--work:52px;--tabs:40px}
+body.tablet-compact.reading-mode .topbar{height:var(--top);padding:0 12px;min-height:0}
+body.tablet-compact.reading-mode .brand{gap:8px}
+body.tablet-compact.reading-mode .brand-mark{width:32px;height:32px;border-radius:9px;font-size:15px}
+body.tablet-compact.reading-mode .brand b{font-size:13px}
+body.tablet-compact.reading-mode .brand small,body.tablet-compact.reading-mode .mode-link,body.tablet-compact.reading-mode .privacy{display:none}
+body.tablet-compact.reading-mode .workspace{padding-top:var(--top);height:100dvh}
+body.tablet-compact.reading-mode .workbar{position:relative;height:var(--work);grid-template-columns:minmax(0,1fr);grid-template-rows:52px;gap:0;padding:0 9px;align-items:center;overflow:visible}
+body.tablet-compact.reading-mode .work-left{grid-column:1;grid-row:1;gap:5px;min-width:0;width:100%}
+body.tablet-compact.reading-mode .work-left>.icon-btn{width:36px;min-width:36px;height:36px}
+body.tablet-compact.reading-mode .book-meta{flex:1 1 auto;min-width:0;margin-left:3px}
+body.tablet-compact.reading-mode .book-meta b{max-width:none;font-size:12px}
+body.tablet-compact.reading-mode .book-meta small{display:block;max-width:none;font-size:8.5px;line-height:1.15}
+body.tablet-compact.reading-mode .mobile-tools-btn{display:grid;place-items:center;flex:0 0 36px;margin-left:auto;font-size:15px;letter-spacing:1px}
+body.tablet-compact.reading-mode .mobile-search-btn{display:grid;place-items:center}
+body.tablet-compact.reading-mode .search-cluster{position:absolute;inset:0 auto auto 0;width:0;height:0;z-index:95}
+body.tablet-compact.reading-mode .search-cluster .global-search{position:fixed;z-index:90;left:12px;right:12px;top:calc(var(--top) + var(--work) + var(--tabs) + 8px);display:none;pointer-events:auto}
+body.tablet-compact.reading-mode .search-cluster .global-search.mobile-search-open{display:grid}
+body.tablet-compact.reading-mode .search-scope-menu{pointer-events:auto}
+body.tablet-compact.reading-mode .work-right{display:none}
+body.tablet-compact.reading-mode.mobile-tools-open{--work:102px}
+body.tablet-compact.reading-mode.mobile-tools-open .workbar{grid-template-rows:52px 50px}
+body.tablet-compact.reading-mode.mobile-tools-open .work-right{display:flex;grid-column:1;grid-row:2;width:100%;min-width:0;align-items:center;justify-content:flex-start;gap:7px;padding:4px 1px 6px;overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain}
+body.tablet-compact.reading-mode.mobile-tools-open .work-right::-webkit-scrollbar{display:none}
+body.tablet-compact.reading-mode.mobile-tools-open .work-right .icon-btn,body.tablet-compact.reading-mode.mobile-tools-open .work-right .tool-btn,body.tablet-compact.reading-mode.mobile-tools-open .work-right .theme-select,body.tablet-compact.reading-mode.mobile-tools-open .font-tools{height:38px;min-height:38px;flex:0 0 auto}
+body.tablet-compact.reading-mode.mobile-tools-open .work-right .icon-btn,body.tablet-compact.reading-mode.mobile-tools-open .work-right .tool-btn{min-width:40px}
+body.tablet-compact.reading-mode.mobile-tools-open .font-tools{display:flex!important;min-width:82px}
+body.tablet-compact.reading-mode.mobile-tools-open .font-tools button{height:36px;width:40px}
+body.tablet-compact.reading-mode.mobile-tools-open .theme-select{display:block!important;width:92px;max-width:none;font-size:12px}
+body.tablet-compact.reading-mode .workspace-body{display:block;position:relative;height:calc(100dvh - var(--top) - var(--work) - var(--tabs));min-height:0}
+body.tablet-compact.reading-mode .sidebar{position:absolute;z-index:60;inset:0 auto 0 0;width:min(44vw,400px);max-width:400px;transform:translateX(-102%);transition:.18s;box-shadow:18px 0 45px rgba(0,0,0,.2)}
+body.tablet-compact.reading-mode .sidebar.mobile-open{transform:translateX(0)}
+body.tablet-compact.reading-mode .desk{height:100%}
+body.tablet-compact.reading-mode .pane-stage,body.tablet-compact.reading-mode .pane iframe{min-height:0}
