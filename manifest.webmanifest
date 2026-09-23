@@ -1,0 +1,15 @@
+{
+  "name": "RuleDesk · 跑团规则台",
+  "short_name": "RuleDesk",
+  "description": "本地优先的 CHM 跑团规则书阅读、检索与多书规则库。",
+  "start_url": "./ruledesk/",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eee4cc",
+  "theme_color": "#eee4cc",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "./icons/ruledesk-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icons/ruledesk-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
