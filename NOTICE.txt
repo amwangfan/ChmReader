@@ -1,0 +1,22 @@
+CHM Preview — static browser reader
+
+This package is designed for static hosting (including Cloudflare Pages).
+It does NOT require Cloudflare Workers or Pages Functions.
+
+The file engine runs locally in the browser. The selected CHM is passed as a
+File object to a browser Web Worker. The archive is read with File.slice()
+and FileReaderSync as ranges are needed; the CHM file is not uploaded by this
+application.
+
+Third-party notice
+------------------
+engine/lzx.js contains a JavaScript port derived from cabextract / CHMLib LZX
+code. Its source header identifies that code as LGPL-licensed. A copy of the
+LGPL 2.1 license is included under LICENSES/LGPL-2.1.txt.
+
+Reference project:
+  bjxpen/chmv (public GitHub repository)
+  Its LZX implementation documents the same cabextract / CHMLib lineage.
+
+The surrounding UI, worker protocol, CHM integration, sanitizer and static
+hosting package in this distribution were assembled for this CHM Preview site.
