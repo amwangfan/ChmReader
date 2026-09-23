@@ -1,0 +1,115 @@
+name: temporary responsive search verification
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify-search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        run: |
+          node --check ruledesk/ruledesk.js
+          node --check ruledesk/library.js
+          node --check ruledesk/index-worker.js
+          node --check app.js
+          node --check chm-worker.js
+      - name: Install browser test dependency
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium
+      - name: Run responsive search browser checks
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/ruledesk-http.log 2>&1 &
+          cat > /tmp/search-check.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          import assert from 'node:assert/strict';
+
+          const browser = await chromium.launch({ headless: true });
+
+          async function verify(name, viewport, isMobile) {
+            const context = await browser.newContext({
+              viewport,
+              isMobile,
+              hasTouch: true,
+              deviceScaleFactor: 1,
+            });
+            const page = await context.newPage();
+            const errors = [];
+            page.on('pageerror', error => errors.push(String(error)));
+            await page.goto('http://127.0.0.1:4173/ruledesk/', { waitUntil: 'networkidle' });
+            await page.evaluate(() => {
+              document.getElementById('landing').hidden = true;
+              document.getElementById('workspace').hidden = false;
+              document.body.classList.add('reading-mode');
+              window.dispatchEvent(new Event('resize'));
+            });
+
+            const compact = await page.evaluate(() =>
+              innerWidth <= 820 || document.body.classList.contains('tablet-compact')
+            );
+            assert.equal(compact, true, name + ': compact mode not active');
+
+            const search = page.locator('#searchBtn');
+            await search.click();
+            assert.equal(await page.locator('#globalSearchForm').evaluate(el => el.classList.contains('mobile-search-open')), true, name + ': search did not open');
+            assert.equal(await page.locator('#globalSearchClose').isVisible(), true, name + ': close button not visible');
+
+            await page.evaluate(() => {
+              const menu = document.getElementById('searchScopeMenu');
+              menu.innerHTML = Array.from({ length: 7 }, (_, i) =>
+                '<button class="search-scope-option" type="button"><span class="scope-icon">↥</span><span class="scope-copy"><span class="scope-title">搜索范围 ' + (i + 1) + '</span><span class="scope-hint">测试目录层级</span></span><span class="scope-count">' + ((i + 1) * 10) + '页</span></button>'
+              ).join('');
+              menu.hidden = false;
+            });
+
+            const formBox = await page.locator('#globalSearchForm').boundingBox();
+            const menuBox = await page.locator('#searchScopeMenu').boundingBox();
+            assert(formBox && formBox.width > viewport.width * 0.8, name + ': search form width invalid');
+            assert(menuBox && menuBox.width > viewport.width * 0.8, name + ': scope menu width invalid');
+            assert(menuBox.x >= 0 && menuBox.x + menuBox.width <= viewport.width + 1, name + ': scope menu outside viewport');
+            assert(menuBox.y >= formBox.y + formBox.height - 2, name + ': scope menu overlaps search form incorrectly');
+
+            await page.screenshot({ path: '/tmp/' + name + '.png', fullPage: true });
+
+            await page.locator('#globalSearchClose').click();
+            assert.equal(await page.locator('#globalSearchForm').evaluate(el => el.classList.contains('mobile-search-open')), false, name + ': close button did not close');
+
+            await search.click();
+            await search.click();
+            assert.equal(await page.locator('#globalSearchForm').evaluate(el => el.classList.contains('mobile-search-open')), false, name + ': search button did not toggle closed');
+
+            await search.click();
+            await page.locator('.tabbar-wrap').dispatchEvent('pointerdown');
+            assert.equal(await page.locator('#globalSearchForm').evaluate(el => el.classList.contains('mobile-search-open')), false, name + ': outside pointer did not close');
+
+            await search.click();
+            await page.keyboard.press('Escape');
+            assert.equal(await page.locator('#globalSearchForm').evaluate(el => el.classList.contains('mobile-search-open')), false, name + ': Escape did not close');
+
+            assert.equal(errors.length, 0, name + ': page errors: ' + errors.join(' | '));
+            console.log(name + ' PASS', { formBox, menuBox, tabletCompact: await page.evaluate(() => document.body.classList.contains('tablet-compact')) });
+            await context.close();
+          }
+
+          await verify('mobile-390x844', { width: 390, height: 844 }, true);
+          await verify('tablet-1024x768', { width: 1024, height: 768 }, true);
+          await verify('tablet-1280x800', { width: 1280, height: 800 }, true);
+          await browser.close();
+          EOF
+          node /tmp/search-check.mjs
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: responsive-search-screenshots
+          path: |
+            /tmp/mobile-390x844.png
+            /tmp/tablet-1024x768.png
+            /tmp/tablet-1280x800.png
