@@ -419,6 +419,31 @@ async function prepareHtml(rawHtml, basePath, generation) {
     el.setAttribute('style', await rewriteCss(el.getAttribute('style') || '', basePath, loadResource));
   }
 
+  for (const table of [...doc.querySelectorAll('table')]) {
+    if (table.parentElement?.closest('table')) continue;
+    const rows = [...table.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr')].slice(0, 12);
+    const columnCount = rows.reduce((max, row) => {
+      const count = [...row.children].reduce((sum, cell) => sum + Math.max(1, Number.parseInt(cell.getAttribute('colspan') || '1', 10) || 1), 0);
+      return Math.max(max, count);
+    }, 0);
+    const labels = columnCount >= 2 && columnCount <= 3;
+    if (labels) {
+      for (const row of rows) {
+        const first = row.children?.[0];
+        if (!first || !/^(td|th)$/i.test(first.tagName)) continue;
+        first.removeAttribute('width');
+        first.style.removeProperty('width');
+        const label = String(first.textContent || '').replace(/\s+/g, ' ').trim();
+        if (label && !first.getAttribute('title')) first.setAttribute('title', label);
+      }
+    }
+    const wrap = doc.createElement('div');
+    wrap.className = labels ? 'rd-table-scroll rd-table-labels' : 'rd-table-scroll';
+    wrap.dataset.columns = String(columnCount || '');
+    table.parentNode?.insertBefore(wrap, table);
+    wrap.append(table);
+  }
+
   const csp = doc.createElement('meta');
   csp.setAttribute('http-equiv', 'Content-Security-Policy');
   csp.setAttribute('content', [
@@ -441,11 +466,19 @@ async function prepareHtml(rawHtml, basePath, generation) {
   readerStyle.textContent = `
     html,body{min-height:100%;margin:0}
     body{box-sizing:border-box;padding:22px 26px;background:#fff;color:#20201d;overflow-wrap:anywhere}
-    img,svg,video,table{max-width:100%}
+    img,svg,video{max-width:100%}
+    .rd-table-scroll{max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;margin:14px 0}
+    .rd-table-scroll>table{max-width:none!important;margin:0!important}
     pre{white-space:pre-wrap;word-break:break-word}
     a[aria-disabled="true"]{cursor:not-allowed;text-decoration:line-through;color:inherit}
     mark.chm-search-hit{background:#ffe36e;color:inherit;border-radius:3px;padding:0 .06em;box-shadow:0 0 0 2px rgba(180,130,0,.12)}
-    @media(max-width:720px){body{padding:16px}}
+    @media(max-width:720px){
+      body{padding:16px}
+      .rd-table-scroll>table{width:max-content!important;min-width:100%!important;table-layout:auto!important}
+      .rd-table-scroll td,.rd-table-scroll th{overflow-wrap:normal!important;word-break:normal!important}
+      .rd-table-labels>table>*>tr>td:first-child,.rd-table-labels>table>*>tr>th:first-child,.rd-table-labels>table>tr>td:first-child,.rd-table-labels>table>tr>th:first-child{width:auto!important;max-width:6.5em!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+      .rd-table-labels>table>*>tr>td:not(:first-child),.rd-table-labels>table>*>tr>th:not(:first-child),.rd-table-labels>table>tr>td:not(:first-child),.rd-table-labels>table>tr>th:not(:first-child){min-width:9em;white-space:nowrap!important}
+    }
   `;
   doc.head.append(readerStyle);
 

@@ -844,8 +844,21 @@ async function prepareHtml(rawHtml, basePath, paneName, generation) {
       if (weight > 24) cell.classList.add('rd-cell-xlong');
     }
     const wide = columnCount >= 5 || (columnCount >= 4 && longCells >= 2);
+    // 2–3 column label/value tables (e.g. class traits) crush the value column on mobile
+    // when the label cell has a large HTML width=… attribute. Mark them for first-column ellipsis.
+    const labels = columnCount >= 2 && columnCount <= 3 && !wide;
+    if (labels) {
+      for (const row of rows) {
+        const first = row.children?.[0];
+        if (!first || !/^(td|th)$/i.test(first.tagName)) continue;
+        first.removeAttribute('width');
+        first.style.removeProperty('width');
+        const label = cleanText(first.textContent || '');
+        if (label && !first.getAttribute('title')) first.setAttribute('title', label);
+      }
+    }
     const wrap = doc.createElement('div');
-    wrap.className = wide ? 'rd-table-scroll rd-table-wide' : 'rd-table-scroll';
+    wrap.className = ['rd-table-scroll', wide ? 'rd-table-wide' : '', labels ? 'rd-table-labels' : ''].filter(Boolean).join(' ');
     wrap.dataset.columns = String(columnCount || '');
     table.parentNode?.insertBefore(wrap, table);
     wrap.append(table);
@@ -873,7 +886,15 @@ async function prepareHtml(rawHtml, basePath, paneName, generation) {
     ::selection{background:${readerSettings.theme === 'dark' ? '#6b5b22' : '#f1d87d'};color:inherit}
     mark.rd-search-hit{background:${readerSettings.theme === 'dark' ? '#8a6b19' : '#ffe36e'}!important;color:inherit!important;border-radius:3px;padding:0 .06em;box-shadow:0 0 0 2px ${readerSettings.theme === 'dark' ? 'rgba(255,222,100,.18)' : 'rgba(180,130,0,.12)'}}
     .rd-jump-target{background:${readerSettings.theme === 'dark' ? '#705713' : '#ffe071'}!important;color:inherit!important;border-radius:5px;padding:.05em .22em!important;box-decoration-break:clone;-webkit-box-decoration-break:clone;box-shadow:0 0 0 3px ${readerSettings.theme === 'dark' ? 'rgba(255,224,112,.16)' : 'rgba(170,115,0,.13)'};scroll-margin-block:28vh}
-    @media(max-width:720px){body{padding:15px 13px 10px!important}.rd-table-scroll{margin-left:-4px;margin-right:-4px;padding-bottom:3px}.rd-table-wide td,.rd-table-wide th{min-width:5.2em}.rd-table-wide .rd-cell-long{min-width:9.5em}.rd-table-wide .rd-cell-xlong{min-width:14em}}
+    @media(max-width:720px){
+      body{padding:15px 13px 10px!important}
+      .rd-table-scroll{margin-left:-4px;margin-right:-4px;padding-bottom:3px}
+      .rd-table-scroll>table{width:max-content!important;min-width:100%!important;table-layout:auto!important}
+      .rd-table-scroll td,.rd-table-scroll th{overflow-wrap:normal!important;word-break:normal!important}
+      .rd-table-labels>table>*>tr>td:first-child,.rd-table-labels>table>*>tr>th:first-child,.rd-table-labels>table>tr>td:first-child,.rd-table-labels>table>tr>th:first-child{width:auto!important;max-width:6.5em!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+      .rd-table-labels>table>*>tr>td:not(:first-child),.rd-table-labels>table>*>tr>th:not(:first-child),.rd-table-labels>table>tr>td:not(:first-child),.rd-table-labels>table>tr>th:not(:first-child){min-width:9em;white-space:nowrap!important}
+      .rd-table-wide td,.rd-table-wide th{min-width:5.2em}.rd-table-wide .rd-cell-long{min-width:9.5em}.rd-table-wide .rd-cell-xlong{min-width:14em}
+    }
   `;
   doc.head.append(style);
   return { html: `<!doctype html>${doc.documentElement.outerHTML}`, title: doc.title || '', urls };

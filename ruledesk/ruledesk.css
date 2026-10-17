@@ -400,3 +400,6 @@ body.reading-mode .global-search.mobile-search-open{box-shadow:0 8px 28px rgba(5
 body[data-reader-theme="dark"].reading-mode .global-search.mobile-search-open{box-shadow:0 10px 32px rgba(0,0,0,.45)}
 body[data-reader-theme="parchment"] .search-close-btn{color:#66553d}
 body[data-reader-theme="dark"] .search-close-btn{color:#bbb8af}
+
+
+/* v1.3.7 — mobile label/value tables: first-column ellipsis + horizontal scroll (styles injected in ruledesk.js iframe CSS). */
